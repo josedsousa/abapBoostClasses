@@ -23,7 +23,11 @@ CLASS lcl_file_handler DEFINITION FINAL.
 
     METHODS format_value
       IMPORTING !value  TYPE any
-      EXPORTING !result TYPE any.
+      EXPORTING !result TYPE any
+      RAISING   cx_abap_datfm_no_date
+                cx_abap_datfm_invalid_date
+                cx_abap_datfm_format_unknown
+                cx_abap_datfm_ambiguous.
 ENDCLASS.
 
 
@@ -48,8 +52,12 @@ CLASS lcl_file_handler IMPLEMENTATION.
       LOOP AT line_segments ASSIGNING FIELD-SYMBOL(<line_segment>).
         ASSIGN COMPONENT sy-tabix OF STRUCTURE <file_data_str> TO FIELD-SYMBOL(<componente_value>).
 
-        format_value( EXPORTING value  = <line_segment>
-                      IMPORTING result = <componente_value> ).
+        TRY.
+            format_value( EXPORTING value  = <line_segment>
+                          IMPORTING result = <componente_value> ).
+          CATCH cx_abap_datfm_no_date cx_abap_datfm_invalid_date cx_abap_datfm_format_unknown cx_abap_datfm_ambiguous.
+            RAISE EXCEPTION NEW zcx_bo_i071( textid = zcx_bo_i071=>error_uploading_file ).
+        ENDTRY.
       ENDLOOP.
 
       INSERT <file_data_str> INTO TABLE file_data.
@@ -98,11 +106,12 @@ CLASS lcl_file_handler IMPLEMENTATION.
   METHOD format_value.
     CASE cl_abap_typedescr=>describe_by_data( result )->type_kind.
       WHEN cl_abap_typedescr=>typekind_date.
-        " TODO: Method to format date values!
+        cl_abap_datfm=>conv_date_ext_to_int( EXPORTING im_datext = value
+                                             IMPORTING ex_datint = result ).
       WHEN cl_abap_typedescr=>typekind_packed.
         " TODO: Method to format decimals!
+      WHEN OTHERS.
+        result = value.
     ENDCASE.
-
-    result = value.
   ENDMETHOD.
 ENDCLASS.
